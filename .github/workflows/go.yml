@@ -1,28 +1,33 @@
-# This workflow will build a golang project
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-go
-
-name: Go
+name: Docker Build and Push
 
 on:
   push:
-    branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
+    branches: [ master ]
 
 jobs:
-
-  build:
+  build-and-push:
     runs-on: ubuntu-latest
+
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v2
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v1
+
+    - name: Login to DockerHub
+      uses: docker/login-action@v1
       with:
-        go-version: '1.20'
+        username: ${{ secrets.DOCKER_HUB_USERNAME }}
+        password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
-    - name: Build
-      run: go build -v ./...
+    - name: Build and push
+      uses: docker/build-push-action@v2
+      with:
+        context: .
+        file: ./Dockerfile
+        push: true
+        tags: ${{ secrets.DOCKER_HUB_USERNAME }}/websocket-server:latest
 
-    - name: Test
-      run: go test -v ./...
+    - name: Notify EC2 to pull changes
+      run: |
+        curl -X POST -H "Content-Type: application/json" -d '{"token": ${{ secrets.SECRET }} }' http://54.146.6.19:60/webhook
